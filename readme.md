@@ -9,15 +9,15 @@ There are some tests in, yes, 'tests' folder. Each test requires two files to be
 where N is a decimal number. Test numbers are zero-based and must be assigned increasingly, one by one. If program can't find the next file it terminates.
 'test.N.in' file must contain something like this:
 
-'6*253***4  '
-'5**8*7***  '
-'*31******  '
-'**5*6***8  '
-'*28***5*1  '
-'7********  '
-'3*****7**  '
-'***4*****  '
-'*8***3*96  '
+    6*253***4  
+    5**8*7***  
+    *31******  
+    **5*6***8  
+    *28***5*1  
+    7********  
+    3*****7**  
+    ***4*****  
+    *8***3*96  
 
 where unknown numbers are replaced by stars. 'test.N.out' must contain one of the strings from the list below:
 
