@@ -8,19 +8,19 @@
     "net6.0": []
   },
   "packageFolders": {
-    "D:\\Users\\Admin.AMD\\.nuget\\packages\\": {}
+    "C:\\Users\\kochkins\\.nuget\\packages\\": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "d:\\Users\\Admin.AMD\\Documents\\Work\\Study\\SudokuSolver\\SudokuSolver.csproj",
+      "projectUniqueName": "c:\\Work\\Study\\SudokuSolver\\SudokuSolver.csproj",
       "projectName": "SudokuSolver",
-      "projectPath": "d:\\Users\\Admin.AMD\\Documents\\Work\\Study\\SudokuSolver\\SudokuSolver.csproj",
-      "packagesPath": "D:\\Users\\Admin.AMD\\.nuget\\packages\\",
-      "outputPath": "d:\\Users\\Admin.AMD\\Documents\\Work\\Study\\SudokuSolver\\obj\\",
+      "projectPath": "c:\\Work\\Study\\SudokuSolver\\SudokuSolver.csproj",
+      "packagesPath": "C:\\Users\\kochkins\\.nuget\\packages\\",
+      "outputPath": "c:\\Work\\Study\\SudokuSolver\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
-        "D:\\Users\\Admin.AMD\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        "C:\\Users\\kochkins\\AppData\\Roaming\\NuGet\\NuGet.Config"
       ],
       "originalTargetFrameworks": [
         "net6.0"
@@ -58,7 +58,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\6.0.106\\RuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\6.0.101\\RuntimeIdentifierGraph.json"
       }
     }
   }

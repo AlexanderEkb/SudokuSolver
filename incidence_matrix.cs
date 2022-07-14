@@ -8,6 +8,11 @@ namespace Exercize
     public Node d;
     public Row row;
     public int data;
+    public int id;
+    public string DecodeId()
+    {
+      return DecodeId(id);
+    }
     public static string DecodeId(int id)
     {
       string result = "";
@@ -19,18 +24,19 @@ namespace Exercize
       int p2 = id % 9;
 
       result = String.Concat(result, restrictionsP1[restrictionId]);
-      result = String.Concat(result, p1.ToString());
+      result = String.Concat(result, (p1+1).ToString());
       result = String.Concat(result, restrictionsP2[restrictionId]);
-      result = String.Concat(result, p2.ToString());
+      result = String.Concat(result, (p2+1).ToString());
       return result;
     }
-    public Node(Row row, int data)
+    public Node(Row row, int id, int data)
     {
       l = this;
       r = this;
       u = this;
       d = this;
-
+      
+      this.id = id;
       this.data = data;
       this.row  = row;
     }
@@ -44,12 +50,11 @@ namespace Exercize
   class Row
   {
     const int IS_ROOT = -1;
-    public Row(bool isPredefined)
+    public Row()
     {
-      root = new Node(this, IS_ROOT);
+      root = new Node(this, 0, IS_ROOT);
       u = this;
       d = this;
-      this.isPredefined = isPredefined;
       length = 0;
       id = 0;
     }
@@ -73,19 +78,6 @@ namespace Exercize
     {
       return id;
     }
-    public int GetNodeData(int index)
-    {
-      Node wanted = root;
-      for(int i=0; i<=index; i++)
-      {
-        wanted = wanted.r;
-        if(wanted == root)
-        {
-          return -1;
-        }
-      }
-      return wanted.data;
-    }
     public int GetLength()
     {
       return length;
@@ -101,14 +93,15 @@ namespace Exercize
       root.l.r  = node;
       root.l    = node;
       length++;
-      id = (id*324) + node.data;
+      id = (id*324) + node.id;
     }
-    public bool IsPredefined()
+    public void Remove(Node node)
     {
-      return isPredefined;
+      node.l.r = node.r;
+      node.r.l = node.l;
+      length--;
     }
     Node root;
-    bool isPredefined;
     public Row u;
     public Row d;
     int length;
@@ -117,17 +110,41 @@ namespace Exercize
 
   class IncidenceMatrix
   {
-    public IncidenceMatrix(int columnCount, StreamWriter writer)
+    public IncidenceMatrix(StreamWriter writer)
     {
-      this.columnCount = columnCount;
-      this.rowCount = 0;
       this.writer = writer;
-      dummyRow = new Row(true);
-      colHeaders = new Node[columnCount];
-      for(int i=0; i<columnCount; i++)
+      columns = new Row();
+    }
+    public int GetColCount()
+    {
+      return columns.GetLength();
+    }
+    Node GetColHeader(int id)
+    {
+      Node node = columns.GetRoot();
+      int count = columns.GetLength();
+
+      for(int i=0; i<count; i++)
       {
-        colHeaders[i] = new Node(dummyRow, 0);
+        node = node.r;
+        if(node.id == id)
+        {
+          return node;
+        }
       }
+      node = new Node(columns, id, 0);
+      columns.Insert(node);
+      return node;
+    }
+    public int GetRowCount()
+    {
+      Row row = columns.d;
+      int count = 0;
+      for(;row != columns;count++)
+      {
+        row = row.d;
+      }
+      return count;
     }
     public void Add(Row row)
     {
@@ -135,7 +152,7 @@ namespace Exercize
       Node node = root.r;
       while(node != root)
       {
-        Node header = colHeaders[node.data];
+        Node header = GetColHeader(node.id);
         node.u      = header.u;
         node.d      = header;
         header.u.d  = node;
@@ -143,15 +160,10 @@ namespace Exercize
         header.data++;
         node = node.r;
       }
-      row.u = dummyRow.u;
-      row.d = dummyRow;
-      dummyRow.u.d = row;
-      dummyRow.u = row;
-      rowCount++;
-    }
-    public int GetRowCount()
-    {
-      return rowCount;
+      row.u = columns.u;
+      row.d = columns;
+      columns.u.d = row;
+      columns.u = row;
     }
     public void Insert(Row[] rows)
     {
@@ -159,22 +171,22 @@ namespace Exercize
       for(int i=0; i<count; i++)
       {
         Row row = rows[i];
-        int nodeCount = row.GetLength();
-        Node node = row.GetRoot();
-        for(int n=0; n<=nodeCount; n++) /* 'Less or equal' to have the root processed as well */
+        Node root = row.GetRoot();
+        Node node = root.r;
+        for(int n=0; node != root; n++) /* 'Less or equal' to have the root processed as well */
         {
-          node = node.r;
           node.u.d = node;
           node.d.u = node;
+          Node header = GetColHeader(node.id);
+          header.data++;
+          node = node.r;
         }
         row.u.d = row;
         row.d.u = row;
-        rowCount++;
       }
     }
     public Row[] RemoveIntersections(Row row)
     {
-      writer.WriteLine($"RemoveIntersections, row #{row.DecodeId()}");
       Row[] scratchpad = new Row[36];
       int counter = 0;
       Node root = row.GetRoot();
@@ -182,34 +194,14 @@ namespace Exercize
       
       while(node != root)                                         /* Outer loop iterates horizontally over the nodes in selected row */
       {
-        Node columnHeader = colHeaders[node.data];
+        Node columnHeader = GetColHeader(node.id);
         Node cross = columnHeader.d;
 
-        Node foo = columnHeader.d;
-        writer.Write($" Column {node.data} {{");
-        int cnt = 0;
-        while (foo != columnHeader)
-        {
-          writer.Write($"({foo.row.DecodeId()}) ");
-          cnt++;
-          foo = foo.d;
-        }
-        writer.WriteLine($"}} {cnt} entries found.");
         while(cross != columnHeader)                              /* Inner loop iterates vertically over the intersecting rows */
         {
           Node next = cross.d;
-          writer.Write($"  Row #{cross.row.DecodeId()} ");
-          bool isPredefined = cross.row.IsPredefined();
-          bool isChosen = (cross == node);
-          if(isPredefined)
-          {
-            writer.WriteLine(@"is predefined. Can't remove.");
-          }
-          else if(isChosen)
-          {
-            writer.WriteLine(@"is chosen one.");
-          }
-          else
+          bool mayBeRemoved = (cross != node);
+          if(mayBeRemoved)
           {
             Row r = RemoveRow(cross);
             scratchpad[counter] = r;
@@ -225,7 +217,6 @@ namespace Exercize
       {
         result[i] = scratchpad[i];
       }
-      writer.WriteLine(@"RemoveIntersections finished.");
       return result;
     }
     Row RemoveRow(Node anyNode)
@@ -233,29 +224,20 @@ namespace Exercize
       Row row = anyNode.row;
 
       Node root = row.GetRoot();
-      Node node = root;
-      while(true)
+      Node node = root.r;
+      while(node != root)
       {
-        node = node.r;
+        Node header = GetColHeader(node.id);
+        header.data--;
         node.u.d  = node.d;
         node.d.u  = node.u;
-        if(node != root)
-        {
-          int col = node.data;
-          colHeaders[col].data--;
-        }
-        else
-        { /* Root is processed separately */
-          rowCount--;
-          writer.WriteLine($" removed");
-          return root.row;
-        }
+        node = node.r;
       }
+      row.u.d = row.d;
+      row.d.u = row.u;
+      return row;
     }
-    public Node[] colHeaders;
-    int columnCount;
-    Row dummyRow;
-    int rowCount;
+    public Row columns;
     StreamWriter writer;
   }
 }

@@ -17,55 +17,50 @@ using System.Diagnostics;
   }
   class Sudoku : ITask
   {
-    static int recursionDepth;
+    const int PUZZLE_SIZE           = 9;
+    const int CONSTRAINT_COUNT      = 4;
+    const int CONSTRAINT_ROW_COL    = 0;
+    const int CONSTRAINT_ROW_NUMBER = 1;
+    const int CONSTRAINT_COL_NUMBER = 2;
+    const int CONSTRAINT_BOX_NUMBER = 3;
+    private int[,] field;
+    private bool[,] rowColFlags;
+    private bool[,] rowNumFlags;
+    private bool[,] colNumFlags;
+    private bool[,] boxNumFlags;
+    private StreamWriter writer;
+    int recursionDepth;
+    int maxRecursionDepth;
     const int NUMBERS = PUZZLE_SIZE + 1; /* 0..9 */
     IncidenceMatrix matrix;
     public Sudoku()
     {
       recursionDepth = 0;
+      maxRecursionDepth = 0;
       field = new int[PUZZLE_SIZE, PUZZLE_SIZE];
+      rowNumFlags = new bool[PUZZLE_SIZE, PUZZLE_SIZE];
+      colNumFlags = new bool[PUZZLE_SIZE, PUZZLE_SIZE];
+      boxNumFlags = new bool[PUZZLE_SIZE, PUZZLE_SIZE];
+      rowColFlags = new bool[PUZZLE_SIZE, PUZZLE_SIZE];
       writer = new StreamWriter(Console.OpenStandardOutput());
-      matrix = new IncidenceMatrix(0, new StreamWriter(Console.OpenStandardOutput()));
+      matrix = new IncidenceMatrix(new StreamWriter(Console.OpenStandardOutput()));
     }
-    Result CheckCol(int Col)
+    Node ChooseColumn()
     {
-      int[] flags = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-
-      for(int row=0; row<PUZZLE_SIZE; row++)
+      CountSort sorter = new CountSort(writer);
+      Row headers = matrix.columns;
+      int headerCount = headers.GetLength();
+      Node[] headerArray = new Node[headerCount];
+      Node header = headers.GetRoot().r;
+      for(int i=0; header != headers.GetRoot(); i++)
       {
-        int n = field[row, Col];
-        if(flags[n] == 0)
-          flags[n] = 1;
-        else if(n == 0)
-          flags[n]++;
-        else
-          return Result.WRONG;
+        headerArray[i] = header;
+        header = header.r;
       }
-      return Result.OK;
-    }
-    Result CheckRow(int row)
-    {
-      int[] flags = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-
-      for(int col=0; col<PUZZLE_SIZE; col++)
-      {
-        int n = field[row, col];
-        if(flags[n] == 0)
-          flags[n] = 1;
-        else if(n == 0)
-          flags[n]++;
-        else
-          return Result.WRONG;
-      }
-      return Result.OK;
-    }
-    int ChooseColumn()
-    {
-      int[] index = CreateIndex();
+      int[] index = sorter.Sort(headerArray);
       int col;
-      for(col=0;matrix.colHeaders[col].data<2;col++);
-
-      return col;
+      for(col=0;headerArray[col].data<2;col++);
+      return headerArray[col];
     }
     public void Clear()
     {
@@ -77,13 +72,17 @@ using System.Diagnostics;
           field[row, col] = 0;
         }
       }
-    }
-    int[] CreateIndex()
-    {
-      CountSort sorter = new CountSort(writer);
-      int[] index = sorter.Sort(matrix.colHeaders);
 
-      return index;
+      for(int i=0; i<PUZZLE_SIZE; i++)
+      {
+        for(int num=0; num<PUZZLE_SIZE; num++)
+        {
+          rowNumFlags[i, num] = true;
+          colNumFlags[i, num] = true;
+          boxNumFlags[i, num] = true;
+          rowColFlags[i, num] = true;
+        }
+      }
     }
     Constraint DecodeConstraintId(int id)
     {
@@ -116,27 +115,27 @@ using System.Diagnostics;
         }
         else if(constraints[i].constraint == CONSTRAINT_BOX_NUMBER)
         {
-          result.num = constraints[i].p2;
+          result.num = constraints[i].p2 + 1;
         }
       }
       return result;
     }
     void DecodeSolution()
     {
-      Row headers = matrix.colHeaders[0].row;
-      Row row = headers;
+      Row dummy = matrix.columns;
+      Row row = dummy.d;
       int counter = 0;
       writer.WriteLine($"{matrix.GetRowCount()} rows remained in the matrix. Now decoding.");
-      while(row != headers)
+      while(row != dummy)
       {
-        row = row.d;
         counter++;
-        writer.WriteLine($"decoding row {counter} - {row.DecodeId()}");
         FieldCell cell = DecodeRowId(row.GetId());
         field[cell.row, cell.col] = cell.num;
+        row = row.d;
       }
       writer.WriteLine(@"Solution:");
       DrawField();
+      writer.WriteLine($"Max recursion depth: {maxRecursionDepth}");
     }
     void DrawField()
     {
@@ -179,6 +178,7 @@ using System.Diagnostics;
 
     void InitializeMatrix()
     {
+      matrix = new IncidenceMatrix(writer);
       for(int r=0; r<PUZZLE_SIZE; r++)
       {
         for(int c=0; c<PUZZLE_SIZE; c++)
@@ -189,40 +189,38 @@ using System.Diagnostics;
 
           for(int n=0;n<PUZZLE_SIZE; n++)
           {
-            bool isPredefined = (field[r, c] == (n+1)); 
-            Row newRow = new Row(isPredefined);
-            newRow.Insert(new Node(newRow, EncodeConstraintId(CONSTRAINT_ROW_COL, r, c)));
-            newRow.Insert(new Node(newRow, EncodeConstraintId(CONSTRAINT_ROW_NUMBER, r, n)));
-            newRow.Insert(new Node(newRow, EncodeConstraintId(CONSTRAINT_COL_NUMBER, c, n)));
-            newRow.Insert(new Node(newRow, EncodeConstraintId(CONSTRAINT_BOX_NUMBER, box, n)));
-            matrix.Add(newRow);
+            Row newRow = new Row();
+            bool addRow = (rowNumFlags[r, n]) && (colNumFlags[c, n]) && (boxNumFlags[box, n]) && (rowColFlags[r, c]);
+            if(addRow)
+            {
+              newRow.Insert(new Node(newRow, EncodeConstraintId(CONSTRAINT_ROW_COL, r, c), 0));
+              newRow.Insert(new Node(newRow, EncodeConstraintId(CONSTRAINT_ROW_NUMBER, r, n), 0));
+              newRow.Insert(new Node(newRow, EncodeConstraintId(CONSTRAINT_COL_NUMBER, c, n), 0));
+              newRow.Insert(new Node(newRow, EncodeConstraintId(CONSTRAINT_BOX_NUMBER, box, n), 0));
+              matrix.Add(newRow);
+            }
           }
         }
       }
-
-      // for(int i=0; i<columnCount; i++)
-      // {
-      //   for(int j=i+1; j<columnCount; j++)
-      //   {
-      //     if(matrix.colHeaders[i].data == matrix.colHeaders[j].data)
-      //     {
-      //       writer.WriteLine($"ALARM! Cols {i} and {j} have the same restriction code: {matrix.colHeaders[i].data}");
-      //     }
-      //   }
-      // }
     }
     MatrixState IsSolved()
     {
-      for(int i=0; i<columnCount; i++)
+      if(matrix.GetRowCount() > 0)
       {
-        int nodesInColumn = matrix.colHeaders[i].data;
-        if(nodesInColumn == 0)
+        Node root = matrix.columns.GetRoot();
+        Node node = root.r;
+        while(node != root)
         {
-          return MatrixState.DEAD_END;
-        }
-        else if(nodesInColumn > 1)
-        {
-          return MatrixState.INCOMPLETE_SOLUTION;
+          int nodesInColumn = node.data;
+          if(nodesInColumn == 0)
+          {
+            return MatrixState.DEAD_END;
+          }
+          else if(nodesInColumn > 1)
+          {
+            return MatrixState.INCOMPLETE_SOLUTION;
+          }
+          node = node.r;
         }
       }
       return MatrixState.SOLVED;
@@ -230,7 +228,10 @@ using System.Diagnostics;
     Result Iterate()
     {
       recursionDepth++;
-      writer.WriteLine($"Iterate() entry ---------- Recursion depth: {recursionDepth}");
+      if(recursionDepth > maxRecursionDepth)
+      {
+        maxRecursionDepth = recursionDepth;
+      }
       Result result = Result.WRONG;
       MatrixState state = IsSolved();
       switch(state)
@@ -240,11 +241,9 @@ using System.Diagnostics;
           result = Result.OK;
           break;
         case MatrixState.DEAD_END:
-          writer.WriteLine(@"Roll back");
           break;
         default:
-          int col = ChooseColumn();
-          Node colHeader = matrix.colHeaders[col];
+          Node colHeader = ChooseColumn();
           Node node = colHeader.d;
           while(node != colHeader)  /* The loop iterates over the rows that include nodes in selected column */
           {
@@ -252,21 +251,15 @@ using System.Diagnostics;
             Row[] retiringRows = matrix.RemoveIntersections(row);
             if(retiringRows.Length > 0)
             {
-              writer.WriteLine($"Rows left: {matrix.GetRowCount()}, gone: {retiringRows.Length}");
               result = Iterate();
               if(result == Result.OK)
               {
                 return Result.OK;
               }
             }
-            else
-            {
-              writer.WriteLine(@"No rows could be removed. Skip.");
-            }
             if(retiringRows.Length > 0)
             {
               matrix.Insert(retiringRows);
-              writer.WriteLine($"Insert. Rows become: {matrix.GetRowCount()}, added: {retiringRows.Length}");
             }
             node = node.d;
           }
@@ -288,22 +281,40 @@ using System.Diagnostics;
         }
         for(int col=0; col<PUZZLE_SIZE; col++)
         {
+          int boxRow = row / 3;
+          int boxCol = col / 3;
+          int box = boxRow * 3 + boxCol;
+
+          bool rowOk = true;
+          bool colOk = true;
+          bool boxOk = true;
+          bool numOk = true;
+
           string c = str[col].ToString();
           int num = 0;
-          if(!c.Equals("*"))
-          {
-            num = Convert.ToInt32(c);
-          }
-          if(num == 0)
+          if(c.Equals("*"))
           {
             writer.Write(@"∙ ");
           }
           else
           {
+            num = Convert.ToInt32(c);
             writer.Write($"{num} ");
+            rowOk = rowNumFlags[row, num-1] == true;
+            colOk = colNumFlags[col, num-1] == true;
+            boxOk = boxNumFlags[box, num-1] == true;
+            numOk = rowColFlags[row, col] == true;
           }
-          Result result = Put(row, col, num);
-          if(result != Exercize.Result.OK)
+          bool allOk = rowOk && colOk && boxOk && numOk;
+          if(allOk)
+          {
+            field[row, col] = num;
+            if (num != 0) rowNumFlags[row, num-1] = false;
+            if (num != 0) colNumFlags[col, num-1] = false;
+            if (num != 0) boxNumFlags[box, num-1] = false;
+            if (num != 0) rowColFlags[row, col] = false;
+          }
+          else
           {
             writer.WriteLine(@"<<ERROR!");
             return Result.WRONG;
@@ -311,28 +322,8 @@ using System.Diagnostics;
         }
         writer.WriteLine();
       }
-
       writer.WriteLine();
       writer.WriteLine("Loaded");
-      return Result.OK;
-    }
-    public Result Put(int row, int col, int num)
-    {
-      int prev = field[row, col];
-      field[row, col] = num;
-      Result rowOk = CheckRow(row);
-      Result colOk = CheckCol(col);
-      Result boxOk = CheckBox(row, col);
-      bool somethingWentWrong =
-      (rowOk != Result.OK) ||
-      (colOk != Result.OK) ||
-      (boxOk != Result.OK);
-      
-      if (somethingWentWrong)
-      {
-        field[row, col] = prev;
-        return Result.WRONG;
-      }
       return Result.OK;
     }
     public string Run(string[] data, string solutionFile)
@@ -364,10 +355,9 @@ using System.Diagnostics;
       Result result = Result.WRONG;
       writer.WriteLine(@"Solving...");
       recursionDepth = 0;
+      maxRecursionDepth = 0;
       Stopwatch sw = new Stopwatch();
       sw.Start();
-      columnCount = CONSTRAINT_COUNT * PUZZLE_SIZE * PUZZLE_SIZE; /* Total count of all applicable constraints */
-      matrix = new IncidenceMatrix(columnCount, writer);
       InitializeMatrix();
       writer.WriteLine($"Incidence matrix of {matrix.GetRowCount()} rows has been built.");
       Result solutionFound = Iterate();
@@ -386,39 +376,5 @@ using System.Diagnostics;
       writer.WriteLine($"Time elapsed: {timeElapsed} ms.");
       return result;
     }
-    Result CheckBox(int row, int col)
-    {
-      int[] flags = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-      int boxRow = row / 3;
-      int fromRow = boxRow * 3;
-      int toRow = fromRow + (PUZZLE_SIZE / 3);
-      int boxCol = col / 3;
-      int fromCol = boxCol * 3;
-      int toCol = fromCol + (PUZZLE_SIZE / 3);
-      for(int nCol=fromCol; nCol<toCol; nCol++)
-      {
-        for(int nRow=fromRow; nRow<toRow; nRow++)
-        {
-          int n = field[nRow, nCol];
-          if(flags[n] == 0)
-            flags[n] = 1;
-          else if(n == 0)
-            flags[n]++;
-          else
-            return Result.WRONG;
-        }
-      }
-      return Result.OK;
-    }
-    private int[,] field;
-    private int columnCount;
-    private StreamWriter writer;
-    const int PUZZLE_SIZE           = 9;
-    const int CONSTRAINT_COUNT      = 4;
-    const int CONSTRAINT_ROW_COL    = 0;
-    const int CONSTRAINT_ROW_NUMBER = 1;
-    const int CONSTRAINT_COL_NUMBER = 2;
-    const int CONSTRAINT_BOX_NUMBER = 3;
-
   }
 }
