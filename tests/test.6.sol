@@ -26,5 +26,6 @@ Solution:
 7 3 4 5 8 9 2 6 1 
 2 1 9 7 4 6 8 3 5 
 
+Max recursion depth: 1
 Time elapsed: 1 ms.
 SUCCESS
